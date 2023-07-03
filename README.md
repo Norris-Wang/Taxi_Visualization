@@ -15,6 +15,7 @@ $ streamlit run Home.py
 1. 利用pandas库实现数据的查询和筛选
 2. 利用plotly、altair和folium实现数据可视化
 3. 利用scipy的Mini Batch KMeans实现热点分析
+4. 利用百度API实现地理编码
 
 ## 输入数据
 某一天的出租车运行数据，支持.txt或.csv格式，列名如示例所示
@@ -26,9 +27,11 @@ $ streamlit run Home.py
 # 需要的库
 ```
 altair
+bs4
 folium
 pandas
 plotly
+requests
 scikit learn
 streamlit
 streamlit_folium
