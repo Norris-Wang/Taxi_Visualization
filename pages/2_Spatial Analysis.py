@@ -1,4 +1,5 @@
 import pandas as pd 
+import numpy as np
 import streamlit as st
 from sklearn.cluster import MiniBatchKMeans
 import folium
@@ -30,8 +31,8 @@ def Get_Address(lat, lon):
 
     uri = url+'&output=' + output + '&ak=' + ak + '&location=' + str(lat) + ',' + str(lon)
     html = requests.get(uri)
-    bs_getDetail = BeautifulSoup(html.text,'lxml')
-    address = eval(bs_getDetail.p.text)["result"]["formatted_address"]
+    info = BeautifulSoup(html.text,'lxml')
+    address = eval(info.p.text)["result"]["formatted_address"]
     return address
 
 # 继承主页面中输入文件的数据
@@ -47,7 +48,7 @@ GetOn.columns = ['ID', 'time', 'lon', 'lat','Duration']
 
 
 # 热点分析
-st.header("Hot Spot Analysis")
+st.header("Hot Spot Analysis on Get-On Data")
 st.caption("Here you can divide the **get-on** points into several different areas, \
            and get the center of the area (hereinafter called a _hot spot_.)")
 
@@ -68,27 +69,66 @@ for i in range(len(hotspots)):
     address_list.append(address)
 hotspots["Address"] = address_list
 
-map = folium.Map(location=[data['GetOnLat'].mean(), data['GetOnLon'].mean()], zoom_start=10, tiles='cartodbpositron')
+map_hotspot = folium.Map(location=[data['GetOnLat'].mean(), data['GetOnLon'].mean()], zoom_start=10, tiles='cartodbpositron')
 
 # 显示各区域点
 GetOn_displayed = GetOn.sample(frac=.001)
-colormap = cm.LinearColormap(colors=['yellow', 'pink', 'orange', 'blue'],
+colormap_cluster = cm.LinearColormap(colors=['yellow', 'pink', 'orange', 'blue'],
                             vmin=GetOn.ClusterID.min(), vmax=GetOn.ClusterID.max())
 for i in range(len(GetOn_displayed)):
     point = GetOn_displayed.iloc[i,:]
     lat, lon, cluster = point.lat, point.lon, point.ClusterID
     folium.CircleMarker(location=[lat, lon],
-                        radius=4, color=colormap(cluster), fill=False).add_to(map)
+                        radius=4, color=colormap_cluster(cluster), fill=False).add_to(map_hotspot)
 
 # 显示热点位置
 for i in range(len(hotspots)):
     hotspot = hotspots.iloc[i,:]
     lat, lon, address = hotspot[0], hotspot[1], hotspot[2]
-    tooltip = folium.Tooltip(f"""
+    tooltip_hotspot = folium.Tooltip(f"""
                              <b>Latitude</b>: {round(lat,2)} N, <b>Longitude</b>: {round(lon,2)} E <br />
                              <b>Address</b>: {address}""")
     folium.CircleMarker(location=[lat, lon],
                         radius=10, color='red', fill=True, fill_color='red',
-                        tooltip=tooltip).add_to(map)
+                        tooltip=tooltip_hotspot).add_to(map_hotspot)
 
-map_plot = folium_static(map)
+plot_hotspot = folium_static(map_hotspot)
+
+st.divider()
+
+# 显示出租车运行起止点
+st.header('Taxi Route')
+st.caption("Here you can select several taxis and get its track.")
+
+ID_selected = st.multiselect(label="Select a taxi ID", 
+             options=sorted(list(set(data.ID))),
+             default=list(set(data.ID))[:3])
+if ID_selected == []:
+    st.stop()
+data_selected = data.query("ID in @ID_selected")
+
+st.write("You select", len(ID_selected), "taxi(s), including", len(data_selected), "record(s).\
+         Here are the records:")
+st.dataframe(data_selected, hide_index=True)
+
+map_route = folium.Map(location=[data_selected['GetOnLat'].mean(), data_selected['GetOnLon'].mean()],
+                 zoom_start=10, tiles='cartodbpositron')
+colormap_route = cm.LinearColormap(colors=['red', 'blue', 'yellow', 'pink', 'green'],
+                                   vmin=np.array(ID_selected).min(), vmax=np.array(ID_selected).max())
+
+for i in range(len(data_selected)):
+    record = data_selected.iloc[i, :]
+    ID =  record.ID
+    start = [record.GetOnLat, record.GetOnLon]
+    end = [record.GetOffLat, record.GetOffLon]
+    duration = record.Duration//60
+    tooltip_route = folium.Tooltip(f"""
+                                   <b>Taxi ID</b>: {ID}<br/>
+                                   <b>Duration</b>: {duration}<br/>
+                                   <b>Start</b>: {Get_Address(start[0], start[1])}</br>
+                                   <b>End</b>: {Get_Address(end[0], end[1])}
+                                   """)
+    folium.PolyLine(locations=(start, end),
+                    color=colormap_route(ID),
+                    tooltip=tooltip_route,alpha=.5).add_to(map_route)
+plot_route = folium_static(map_route)
