@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jun 15 15:55:32 2023
-
-@author: Yamato
-"""
-
-
 import streamlit as st
 import pandas as pd
 import plotly.figure_factory as ff
@@ -13,7 +5,7 @@ import plotly.figure_factory as ff
 st.set_page_config(page_title="Home",
                    page_icon="🏡",
                    layout='wide',
-                   menu_items={"Get help": ""})
+                   menu_items={"Get help": "https://github.com/Norris-Wang/Taxi_Visualization"})
 
 st.write('# Taxi Pick-up And Drop-off Analysis 🚕')
 st.caption('In this app, you can upload a taxi data file to analyze it in multiple dimensions.')
@@ -28,9 +20,13 @@ def Load_Data_From_File(file):
     data.columns = ['ID', 'GetOnTime', 'GetOnLon', 'GetOnLat', 'GetOffTime', 'GetOffLon', 'GetOffLat', 'Duration']
     return data
 
-# 输入数据
-file = st.file_uploader('**Select a file**', type=['txt', 'csv'])
-data = Load_Data_From_File(file)
+try:
+    data = st.session_state['data']
+except (AttributeError, NameError, KeyError):
+    # 输入数据
+    file = st.file_uploader('**Select a file**', type=['txt', 'csv'])
+    data = Load_Data_From_File(file)
+
 Record_Num = data.shape[0]              # 记录数
 ID_list = list(set(data.ID.values))     # 出租车编号列表
 Taxi_Num = len(ID_list)                 # 出租车数
@@ -110,12 +106,11 @@ with st.expander('**Taxi Query**'):
         Lower_Bound, Upper_Bound = st.select_slider(
             label='**Drag the button to select a range**',
             help='Query data of some specified taxis base on their number of orders',
-            options=list(range(Min_Num, Max_Num+1)),
+            options=sorted(list(set(Taxi_Group.Orders.values))),
             value=(Min_Num, Max_Num))
-        filted_TaxiGroup = Taxi_Group[(Taxi_Group.Orders>=Lower_Bound) &
-                                      (Taxi_Group.Orders<=Upper_Bound)]
+        filted_TaxiGroup = Taxi_Group.query('@Upper_Bound>@Taxi_Group.Orders>@Lower_Bound ')
         st.write(filted_TaxiGroup.shape[0], 'record(s) are found')
-        st.dataframe(filted_TaxiGroup, hide_index=True)
+        st.dataframe(filted_TaxiGroup.T)
 
 st.divider()
 
